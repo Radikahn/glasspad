@@ -25,6 +25,15 @@ final class EntryStore {
         }
         selectedID = entries.first?.id
 
+        // Pasted images live in the database alongside the entry they were pasted into.
+        ImageStore.backend = ImageStore.Backend(
+            save: { [weak self] data in
+                guard let self, let db = self.db, let entryID = self.selectedID else { return nil }
+                let id = UUID().uuidString.lowercased()
+                return db.insertImage(id: id, entryID: entryID, data: data) ? id : nil
+            },
+            load: { [weak self] id in self?.db?.imageData(id: id) })
+
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main
         ) { [weak self] _ in

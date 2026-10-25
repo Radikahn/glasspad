@@ -22,6 +22,7 @@ final class VimTextView: NSTextView {
     private var editInProgress = false
     private var isRestyling = false
     private var pills: [LanguagePill] = []
+    private var imageResize: (range: NSRange, width: CGFloat)?
 
     // Cursor
     private var smear = SmearCursor()
@@ -113,6 +114,16 @@ final class VimTextView: NSTextView {
         autoresizingMask = [.width]
         minSize = .zero
         maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+    }
+
+    /// Cmd-V: an image on the clipboard is saved to disk and pasted as a markdown link.
+    override func paste(_ sender: Any?) {
+        guard let link = ImageStore.markdownLink(from: pasteboard) else { return super.paste(sender) }
+        // The image sits on a line of its own so there is room to draw it below.
+        let range = selectedRange()
+        let text = string as NSString
+        let atLineStart = range.location == 0 || text.character(at: range.location - 1) == 10
+        insertText((atLineStart ? "" : "\n") + link + "\n", replacementRange: range)
     }
 
     func load(text: String, insertMode: Bool) {
@@ -522,7 +533,98 @@ final class VimTextView: NSTextView {
     override func draw(_ dirtyRect: NSRect) {
         drawDecorations(dirtyRect)
         super.draw(dirtyRect)
+        drawImages(dirtyRect)
         drawPlaceholder(dirtyRect)
+    }
+
+    /// Pasted images, drawn in the space their line reserves below itself.
+    private func drawImages(_ dirty: NSRect) {
+        for (range, _, image, rect) in imageFrames() where rect.intersects(dirty) {
+            var rect = rect
+            if let resize = imageResize, resize.range == range {
+                rect.size = ImageStore.displaySize(of: image, requested: resize.width,
+                                                   available: textContainer?.size.width ?? rect.width)
+            }
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6).addClip()
+            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1,
+                       respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
+            NSGraphicsContext.restoreGraphicsState()
+
+            // Corner grip for resizing.
+            let grip = Self.gripRect(for: rect)
+            Theme.marker.withAlphaComponent(imageResize?.range == range ? 0.9 : 0.5).setFill()
+            NSBezierPath(roundedRect: grip, xRadius: 3, yRadius: 3).fill()
+        }
+    }
+
+    /// Every rendered image with the rect it is drawn in (view coordinates).
+    private func imageFrames() -> [(NSRange, ImageRef, NSImage, NSRect)] {
+        guard let storage = textStorage, let layoutManager, let textContainer else { return [] }
+        let origin = textContainerOrigin
+        var frames: [(NSRange, ImageRef, NSImage, NSRect)] = []
+        storage.enumerateAttribute(.gpImage, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            guard let ref = value as? ImageRef, let image = ImageStore.image(at: ref.url) else { return }
+            let glyph = layoutManager.glyphIndexForCharacter(at: range.location)
+            let fragment = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+            let size = ImageStore.displaySize(of: image, requested: ref.width, available: textContainer.size.width)
+            // The reserved space is sized for the unclamped width; anchor to its top.
+            let reserved = ImageStore.displaySize(of: image, requested: ref.width,
+                                                  available: .greatestFiniteMagnitude).height
+            let rect = NSRect(x: origin.x, y: origin.y + fragment.maxY - reserved - 4,
+                              width: size.width, height: size.height)
+            frames.append((range, ref, image, rect))
+        }
+        return frames
+    }
+
+    private static func gripRect(for image: NSRect) -> NSRect {
+        NSRect(x: image.maxX - 14, y: image.maxY - 14, width: 10, height: 10)
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        for (_, _, _, rect) in imageFrames() {
+            addCursorRect(Self.gripRect(for: rect).insetBy(dx: -4, dy: -4), cursor: .crosshair)
+        }
+    }
+
+    /// Drags the corner grip; the new width is written into the link on mouse-up.
+    private func trackImageResize(_ event: NSEvent) -> Bool {
+        let point = convert(event.locationInWindow, from: nil)
+        guard let (range, ref, _, rect) = imageFrames().first(where: {
+            Self.gripRect(for: $0.3).insetBy(dx: -4, dy: -4).contains(point)
+        }), let window else { return false }
+
+        let available = textContainer?.size.width ?? rect.width
+        imageResize = (range, rect.width)
+        while let next = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
+            let x = convert(next.locationInWindow, from: nil).x
+            let width = min(max(ImageStore.minDisplayWidth, rect.width + x - point.x), available)
+            imageResize = (range, width)
+            setNeedsDisplay(bounds)
+            if next.type == .leftMouseUp { break }
+        }
+        let width = Int((imageResize?.width ?? rect.width).rounded())
+        imageResize = nil
+        guard width != Int(rect.width.rounded()) else {
+            setNeedsDisplay(bounds)
+            return true
+        }
+        let content = (string as NSString).lineRange(for: NSRange(location: range.location, length: 0))
+        let line = (string as NSString).substring(with: content)
+        let indent = line.prefix(while: { $0 == " " || $0 == "\t" })
+        let newline = line.hasSuffix("\n") ? "\n" : ""
+        breakUndoCoalescing()
+        replaceText(in: content, with: indent + ImageStore.link(to: ref.url, width: width) + newline)
+        window.invalidateCursorRects(for: self)
+        return true
+    }
+
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        // A plain-text view disables Paste when the clipboard only holds an image.
+        if item.action == #selector(paste(_:)), ImageStore.hasImage(pasteboard) { return true }
+        return super.validateUserInterfaceItem(item)
     }
 
     /// Everything that sits behind the glyphs: block backgrounds, quote bars,
@@ -604,6 +706,7 @@ final class VimTextView: NSTextView {
     // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
+        if trackImageResize(event) { return }
         if event.modifierFlags.contains(.command), let storage = textStorage {
             let point = convert(event.locationInWindow, from: nil)
             let index = characterIndexForInsertion(at: point)

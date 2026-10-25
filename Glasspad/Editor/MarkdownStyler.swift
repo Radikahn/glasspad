@@ -9,6 +9,8 @@ extension NSAttributedString.Key {
     static let gpQuote = NSAttributedString.Key("glasspad.quote")
     static let gpRule = NSAttributedString.Key("glasspad.rule")
     static let gpLink = NSAttributedString.Key("glasspad.link")
+    /// A line that is just a local image link; the image is drawn below it.
+    static let gpImage = NSAttributedString.Key("glasspad.image")
 }
 
 struct CodeBlock {
@@ -38,6 +40,7 @@ enum MarkdownStyler {
     private static let ordered = regex(#"^([ \t]*)(\d{1,9}[.)])([ \t]+)"#)
     private static let codeSpan = regex(#"(`)([^`]+)(`)"#)
     private static let link = regex(#"(!?\[)([^\]]+)(\]\(([^)\s]+)(?:[ \t]+"[^"]*")?\))"#)
+    private static let imageLine = regex(#"^[ \t]*!\[[^\]|]*(?:\|(\d{1,5}))?\]\(((?:file|glasspad)://[^)\s]+)\)[ \t]*$"#)
     private static let autolink = regex(#"https?://[^\s<>()\[\]]*[^\s<>()\[\].,;:!?'"]"#)
     private static let emphasis: [(regex: NSRegularExpression, bold: Bool, italic: Bool, strike: Bool)] = [
         (regex(#"(\*\*\*|___)(?=\S)(.+?)(?<=\S)(\1)"#), true, true, false),
@@ -156,6 +159,27 @@ enum MarkdownStyler {
 
     private static func styleLine(_ s: NSTextStorage, _ string: String, content: NSRange, line: NSRange, active: Bool) {
         guard content.length > 0 else { return }
+
+        if let m = imageLine.firstMatch(in: string, range: content),
+           let url = URL(string: (string as NSString).substring(with: m.range(at: 2))),
+           let image = ImageStore.image(at: url) {
+            // Reserve room below the line for the image; off the active line the
+            // link itself collapses to a sliver.
+            let width = m.range(at: 1).location == NSNotFound
+                ? nil : Double((string as NSString).substring(with: m.range(at: 1))).map { CGFloat($0) }
+            let height = ImageStore.displaySize(of: image, requested: width, available: .greatestFiniteMagnitude).height
+            s.addAttributes([
+                .gpImage: ImageRef(url: url, width: width),
+                .paragraphStyle: Theme.paragraph(after: height + 8),
+            ], range: line)
+            if !active {
+                s.addAttribute(.font, value: Theme.font(size: 1), range: line)
+                mark(s, content, active)
+            } else {
+                s.addAttribute(.foregroundColor, value: Theme.marker, range: content)
+            }
+            return
+        }
 
         if rule.firstMatch(in: string, range: content) != nil {
             s.addAttribute(.gpRule, value: true, range: line)

@@ -507,6 +507,7 @@ extension VimTextView {
         if let register, register.changeCount == pasteboard.changeCount {
             return (register.text, register.linewise)
         }
+        if let link = ImageStore.markdownLink(from: pasteboard) { return (link + "\n", true) }
         guard let text = pasteboard.string(forType: .string), !text.isEmpty else { return nil }
         return (text, text.hasSuffix("\n"))
     }
