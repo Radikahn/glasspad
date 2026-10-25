@@ -48,6 +48,38 @@ final class Database {
                 PRAGMA user_version = 1;
                 """)
         }
+        if userVersion() < 2 {
+            try exec("""
+                CREATE TABLE IF NOT EXISTS images (
+                    id          TEXT PRIMARY KEY,
+                    entry_id    INTEGER NOT NULL,
+                    data        BLOB NOT NULL,
+                    created_at  REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS images_entry_id ON images(entry_id);
+                """)
+            try importImageFiles()
+            try exec("PRAGMA user_version = 2;")
+        }
+    }
+
+    /// Early builds saved pasted images as files and linked them with file:// URLs.
+    /// Copy those into the images table and point the links at the copies.
+    /// The files themselves are left where they are.
+    private func importImageFiles() throws {
+        let pattern = try NSRegularExpression(pattern: #"\]\((file://[^)\s]*/Glasspad/Images/[^)\s]+)\)"#)
+        for entry in fetchEntries() {
+            let body = entry.body as NSString
+            var updated = entry.body
+            for m in pattern.matches(in: entry.body, range: NSRange(location: 0, length: body.length)) {
+                let link = body.substring(with: m.range(at: 1))
+                guard let url = URL(string: link), let data = try? Data(contentsOf: url) else { continue }
+                let id = UUID().uuidString.lowercased()
+                guard insertImage(id: id, entryID: entry.id, data: data) else { continue }
+                updated = updated.replacingOccurrences(of: link, with: "glasspad://image/\(id)")
+            }
+            if updated != entry.body { updateEntry(id: entry.id, body: updated, updatedAt: entry.updatedAt) }
+        }
     }
 
     private func userVersion() -> Int {
@@ -92,6 +124,32 @@ final class Database {
         run("DELETE FROM entries WHERE id = ?;") { stmt in
             sqlite3_bind_int64(stmt, 1, id)
         }
+        run("DELETE FROM images WHERE entry_id = ?;") { stmt in
+            sqlite3_bind_int64(stmt, 1, id)
+        }
+    }
+
+    // MARK: Images
+
+    @discardableResult
+    func insertImage(id: String, entryID: Int64, data: Data) -> Bool {
+        run("INSERT INTO images (id, entry_id, data, created_at) VALUES (?, ?, ?, ?);") { stmt in
+            sqlite3_bind_text(stmt, 1, id, -1, Self.transient)
+            sqlite3_bind_int64(stmt, 2, entryID)
+            _ = data.withUnsafeBytes { bytes in
+                sqlite3_bind_blob(stmt, 3, bytes.baseAddress, Int32(bytes.count), Self.transient)
+            }
+            sqlite3_bind_double(stmt, 4, Date().timeIntervalSince1970)
+        }
+    }
+
+    func imageData(id: String) -> Data? {
+        var data: Data?
+        query("SELECT data FROM images WHERE id = '\(id.filter { $0.isHexDigit || $0 == "-" })';") { stmt in
+            guard let bytes = sqlite3_column_blob(stmt, 0) else { return }
+            data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, 0)))
+        }
+        return data
     }
 
     // MARK: Helpers
