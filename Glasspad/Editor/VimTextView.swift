@@ -115,6 +115,12 @@ final class VimTextView: NSTextView {
         maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
     }
 
+    /// Cmd-V: an image on the clipboard is saved to disk and pasted as a markdown link.
+    override func paste(_ sender: Any?) {
+        guard let link = ImageStore.markdownLink(from: pasteboard) else { return super.paste(sender) }
+        insertText(link, replacementRange: selectedRange())
+    }
+
     func load(text: String, insertMode: Bool) {
         searchMatches = []
         lastSearch = ""

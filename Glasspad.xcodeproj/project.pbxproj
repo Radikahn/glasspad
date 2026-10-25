@@ -29,6 +29,7 @@
 		AF226CCA3163FB6E668B6824 /* MarkdownLayoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D60D9060EDB851A2F05293F /* MarkdownLayoutManager.swift */; };
 		B6793B31E28C6FA58C8B1ECA /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1AF8FE211304455613A6AB6 /* EditorView.swift */; };
 		C3EBF327843E1E803ABBD461 /* EditorStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38CE57537F4C1427B848DAAF /* EditorStatus.swift */; };
+		C59E9B15ABCFBAA84391276C /* ImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD860FDECE405D4FE97AFFFB /* ImageStore.swift */; };
 		CA97FE8BD475C100662E42EF /* StatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FA6967B443B9A4FC25E806 /* StatusBar.swift */; };
 		D216DFBB74515FECAE33916B /* JetBrainsMono-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F7105A1BF72EF0044072F1E8 /* JetBrainsMono-Italic.ttf */; };
 		D4B419E7FB47E27A3B89056C /* SmearCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4088F5D573EEC32E842DA7E1 /* SmearCursor.swift */; };
@@ -60,6 +61,7 @@
 		9B702F390902807086FF3539 /* VimTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VimTextView.swift; sourceTree = "<group>"; };
 		A8B04DC147A98AE96651700C /* CodeLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeLanguage.swift; sourceTree = "<group>"; };
 		B692F8B16066647A3B1E70DC /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		BD860FDECE405D4FE97AFFFB /* ImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageStore.swift; sourceTree = "<group>"; };
 		C1AF8FE211304455613A6AB6 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		C6DEF6F1DA98BBFA35E1AE6A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		CC1E4B5C8367BF8F290D75FA /* VimTextView+Vim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VimTextView+Vim.swift"; sourceTree = "<group>"; };
@@ -99,6 +101,7 @@
 				A8B04DC147A98AE96651700C /* CodeLanguage.swift */,
 				38CE57537F4C1427B848DAAF /* EditorStatus.swift */,
 				C1AF8FE211304455613A6AB6 /* EditorView.swift */,
+				BD860FDECE405D4FE97AFFFB /* ImageStore.swift */,
 				4C72C8A746129A1E1165552D /* LanguagePill.swift */,
 				0D60D9060EDB851A2F05293F /* MarkdownLayoutManager.swift */,
 				E711DBAD423E6F93D5725266 /* MarkdownStyler.swift */,
@@ -281,6 +284,7 @@
 				DE80FD11AE1192583740D37B /* Glass.swift in Sources */,
 				86B8576C200949986AF7A6F9 /* GlassSettings.swift in Sources */,
 				E91C769D67B10FC0DE2EE134 /* GlasspadApp.swift in Sources */,
+				C59E9B15ABCFBAA84391276C /* ImageStore.swift in Sources */,
 				1AF256C0C06CBA8AE50DF762 /* LanguagePill.swift in Sources */,
 				AF226CCA3163FB6E668B6824 /* MarkdownLayoutManager.swift in Sources */,
 				178D8D96619551FA8FAF884D /* MarkdownStyler.swift in Sources */,
